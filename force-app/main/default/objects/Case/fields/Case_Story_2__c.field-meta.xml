@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Case_Story_2__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>This is case story 2 for the test</description>
+    <inlineHelpText>This is case story 2 for the test</inlineHelpText>
+    <label>Case Story 2</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>
