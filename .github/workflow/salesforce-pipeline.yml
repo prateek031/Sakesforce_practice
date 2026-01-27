@@ -1,48 +1,118 @@
-name: Simple CI/CD with Delta Deploy
+name: Salesforce QA Deployment (Delta + Specified Tests)
 
 on:
   pull_request:
-    branches: [ qa ]   # Validation on PR
+    branches: [ qa ]
   push:
-    branches: [ qa ]   # Deploy after merge into QA
+    branches: [ qa ]
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: 'Run Apex test classes?'
+        type: boolean
+        default: false
+      manual_tests:
+        description: 'Optional test class names (comma separated)'
+        required: false
+        default: ''
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Run Validation
-        run: |
-          echo "Running validation..."
-          # apne test/lint commands daalein
-          # e.g. npm install && npm test
-
-  deploy:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Find Delta Changes
+      - name: Install Salesforce CLI + Delta plugin
         run: |
-          echo "Finding delta changes..."
-          git fetch origin
-          # Compare last commit with previous one
-          git diff --name-only HEAD~1 HEAD > changed_files.txt
-          echo "Changed files:"
-          cat changed_files.txt
+          npm install --global @salesforce/cli
+          echo y | sfdx plugins:install sfdx-git-delta
 
-      - name: Deploy Delta
+      - name: Set QA environment
+        id: env
         run: |
-          echo "Deploying only delta changes..."
-          while read file; do
-            echo "Deploying $file"
-            # yahan apna deploy logic daalein per file basis
-            # e.g. scp $file server:/app/
-          done < changed_files.txt
+          echo "AUTH=${{ secrets.SFDX_AUTH_URL_QA }}" >> $GITHUB_OUTPUT
+          echo "ALIAS=qa" >> $GITHUB_OUTPUT
+          echo "FROM=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
+          echo "TESTS=Academiccalendartest" >> $GITHUB_OUTPUT
+
+      - name: Auth QA org
+        run: |
+          echo "${{ steps.env.outputs.AUTH }}" > auth.txt
+          sf org login sfdx-url -f auth.txt --alias ${{ steps.env.outputs.ALIAS }} --set-default
+          sf org list
+
+      - name: Generate delta package
+        run: |
+          mkdir -p delta
+          sfdx sgd:source:delta --to HEAD --from "${{ steps.env.outputs.FROM }}" --output-dir delta --generate-delta
+          ls -R delta
+
+      - name: Validate delta (conditional tests)
+        run: |
+          if [ -f delta/package/package.xml ]; then
+            if [ "${{ github.event.inputs.run_tests }}" = "true" ]; then
+              TESTS="${{ github.event.inputs.manual_tests }}"
+              if [ -z "$TESTS" ]; then
+                TESTS="${{ steps.env.outputs.TESTS }}"
+              fi
+              sf project deploy start -x delta/package/package.xml -o ${{ steps.env.outputs.ALIAS }} --test-level RunSpecifiedTests --tests "$TESTS" --dry-run --wait 30
+            else
+              sf project deploy start -x delta/package/package.xml -o ${{ steps.env.outputs.ALIAS }} --test-level NoTestRun --dry-run --wait 30
+            fi
+          else
+            echo "No delta changes detected, skipping validation."
+          fi
+
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Salesforce CLI + Delta plugin
+        run: |
+          npm install --global @salesforce/cli
+          echo y | sfdx plugins:install sfdx-git-delta
+
+      - name: Set QA environment
+        id: env
+        run: |
+          echo "AUTH=${{ secrets.SFDX_AUTH_URL_QA }}" >> $GITHUB_OUTPUT
+          echo "ALIAS=qa" >> $GITHUB_OUTPUT
+          echo "FROM=${{ github.event.before }}" >> $GITHUB_OUTPUT
+          echo "TESTS=Academiccalendartest" >> $GITHUB_OUTPUT
+
+      - name: Auth QA org
+        run: |
+          echo "${{ steps.env.outputs.AUTH }}" > auth.txt
+          sf org login sfdx-url -f auth.txt --alias ${{ steps.env.outputs.ALIAS }} --set-default
+          sf org list
+
+      - name: Generate delta package
+        run: |
+          mkdir -p delta
+          sfdx sgd:source:delta --to HEAD --from "${{ steps.env.outputs.FROM }}" --output-dir delta --generate-delta
+          ls -R delta
+
+      - name: Deploy delta to QA (conditional tests)
+        run: |
+          if [ -f delta/package/package.xml ]; then
+            if [ "${{ github.event.inputs.run_tests }}" = "true" ]; then
+              TESTS="${{ github.event.inputs.manual_tests }}"
+              if [ -z "$TESTS" ]; then
+                TESTS="${{ steps.env.outputs.TESTS }}"
+              fi
+              sf project deploy start -x delta/package/package.xml -o ${{ steps.env.outputs.ALIAS }} --test-level RunSpecifiedTests --tests "$TESTS" --wait 60
+            else
+              sf project deploy start -x delta/package/package.xml -o ${{ steps.env.outputs.ALIAS }} --test-level NoTestRun --wait 60
+            fi
+          else
+            echo "No delta changes detected, skipping deployment."
+          fi
