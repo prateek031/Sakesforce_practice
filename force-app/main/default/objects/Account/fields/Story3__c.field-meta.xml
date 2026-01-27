@@ -3,7 +3,7 @@
     <fullName>Story3__c</fullName>
     <defaultValue>false</defaultValue>
     <description>Story3 for test</description>
-    <inlineHelpText>Story3 for test</inlineHelpText>
+    <inlineHelpText>Automation testing</inlineHelpText>
     <label>Story3</label>
     <trackFeedHistory>false</trackFeedHistory>
     <type>Checkbox</type>
