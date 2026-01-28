@@ -3,7 +3,7 @@
     <fullName>StorySF__c</fullName>
     <defaultValue>false</defaultValue>
     <description>Test Story SF</description>
-    <inlineHelpText>Test Story SF</inlineHelpText>
+    <inlineHelpText>Check Automation Testing</inlineHelpText>
     <label>StorySF</label>
     <trackFeedHistory>false</trackFeedHistory>
     <type>Checkbox</type>
