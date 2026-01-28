@@ -1,48 +1,60 @@
-name: Simple CI/CD with Delta Deploy
+name: Salesforce CI/CD - Auth URL Based Deploy
 
 on:
   pull_request:
-    branches: [ qa ]   # Validation on PR
+    branches: [ qa ]     # Validate on PR
   push:
-    branches: [ qa ]   # Deploy after merge into QA
+    branches: [ qa ]     # Deploy on merge
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Run Validation
-        run: |
-          echo "Running validation..."
-          # apne test/lint commands daalein
-          # e.g. npm install && npm test
-
-  deploy:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Find Delta Changes
-        run: |
-          echo "Finding delta changes..."
-          git fetch origin
-          # Compare last commit with previous one
-          git diff --name-only HEAD~1 HEAD > changed_files.txt
-          echo "Changed files:"
-          cat changed_files.txt
+      - name: Install Salesforce CLI
+        run: npm install -g @salesforce/cli
 
-      - name: Deploy Delta
+      - name: Authenticate to Salesforce (Auth URL)
         run: |
-          echo "Deploying only delta changes..."
-          while read file; do
-            echo "Deploying $file"
-            # yahan apna deploy logic daalein per file basis
-            # e.g. scp $file server:/app/
-          done < changed_files.txt
+          echo "${{ secrets.SFDX_AUTH_URL_QA }}" > authurl.txt
+          sf org login sfdx-url \
+            --sfdx-url-file authurl.txt \
+            --alias QA
+
+      - name: Validate Deployment
+        run: |
+          sf project deploy validate \
+            --source-dir force-app \
+            --test-level NoTestRun
+
+  deploy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Salesforce CLI
+        run: npm install -g @salesforce/cli
+
+      - name: Authenticate to Salesforce (Auth URL)
+        run: |
+          echo "${{ secrets.SF_AUTH_URL }}" > authurl.txt
+          sf org login sfdx-url \
+            --sfdx-url-file authurl.txt \
+            --alias QA
+
+      - name: Deploy to QA
+        run: |
+          sf project deploy start \
+            --source-dir force-app \
+            --test-level NoTestRun
