@@ -94,7 +94,7 @@ jobs:
           echo "${{ steps.env.outputs.AUTH }}" > auth.txt
           sf org login sfdx-url -f auth.txt --alias ${{ steps.env.outputs.ALIAS }} --set-default
           sf org list
-          
+
 
       - name: Generate delta package
         run: |
@@ -102,7 +102,7 @@ jobs:
           sfdx sgd:source:delta --to HEAD --from "${{ steps.env.outputs.FROM }}" --output-dir delta --generate-delta
           ls -R delta
 
-      - name: Deploy delta to QA (conditional tests)
+      - name: Deploy delta to SIT (conditional tests)
         run: |
           if [ -f delta/package/package.xml ]; then
             if [ "${{ github.event.inputs.run_tests }}" = "true" ]; then
